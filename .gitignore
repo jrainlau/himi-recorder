@@ -1,0 +1,22 @@
+# Build outputs
+.build/
+HimiRecorder.app/
+
+# macOS
+.DS_Store
+*.swp
+*~
+
+# Xcode (if used)
+*.xcodeproj/
+*.xcworkspace/
+xcuserdata/
+DerivedData/
+
+# IDE
+.vscode/
+.idea/
+
+# Release artifacts
+*.dmg
+*.zip

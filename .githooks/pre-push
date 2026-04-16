@@ -1,0 +1,23 @@
+#!/bin/bash
+set -e
+
+# ============================================================================
+# Git pre-push hook
+# Runs swift test before push. If tests fail, push is rejected.
+# ============================================================================
+
+echo "🧪 Running tests before push..."
+
+PROJECT_ROOT="$(git rev-parse --show-toplevel)"
+cd "${PROJECT_ROOT}"
+
+if swift test 2>&1; then
+    echo "✅ All tests passed. Pushing..."
+    exit 0
+else
+    echo ""
+    echo "❌ Tests failed! Push rejected."
+    echo "   Fix the failing tests, then try again."
+    echo ""
+    exit 1
+fi
