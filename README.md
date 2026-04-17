@@ -8,7 +8,13 @@
 
 ## 演示
 
-<video src="imgs/Jietu20260417-104515-HD.mp4" controls width="100%"></video>
+
+https://github.com/user-attachments/assets/22803ddf-d6dd-4332-963b-76b792cde45e
+
+
+
+
+
 
 ## 核心原理
 
