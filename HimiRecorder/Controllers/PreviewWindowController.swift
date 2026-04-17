@@ -292,7 +292,7 @@ final class PreviewWindowController: NSWindowController {
         
         let savePanel = NSSavePanel()
         savePanel.allowedContentTypes = [.mpeg4Movie]
-        savePanel.nameFieldStringValue = "recording.mp4"
+        savePanel.nameFieldStringValue = videoURL.lastPathComponent
         savePanel.canCreateDirectories = true
         
         savePanel.beginSheetModal(for: window!) { [weak self] response in

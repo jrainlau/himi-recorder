@@ -19,6 +19,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     private var recordingTimer: Timer?
     private var recordingSeconds: Int = 0
+    private var escMonitor: Any?
     /// The selection rect in NS global screen coordinates (bottom-left origin).
     private var currentSelectionNSRect: CGRect = .zero
     /// The NSScreen where the selection was made.
@@ -108,10 +109,21 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             self?.handleSelectionComplete(nsRect, screen: screen)
         }
         controller.onSelectionCancelled = { [weak self] in
-            self?.cancelSelection()
+            self?.cancelRecording()
         }
         controller.showOverlay()
         self.selectionController = controller
+        
+        // Monitor ESC key globally so it works even after selection overlay
+        // loses first responder (e.g., when control bar is shown)
+        removeEscMonitor()
+        escMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            if event.keyCode == 53 { // ESC
+                self?.cancelRecording()
+                return nil // consume the event
+            }
+            return event
+        }
     }
     
     /// Step 2: Selection complete, show control bar below the selection area
@@ -163,9 +175,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Switch overlay to a thin recording border (keeps the border visible, removes the dimming)
         recordingBorderWindow = selectionController?.switchToRecordingBorder()
         
-        // Create temp file
+        // Create temp file — use .tmp extension during recording to avoid
+        // detection by tools that scan open file descriptors for video extensions.
+        // AVAssetWriter requires a file extension it can infer the format from,
+        // so we still write with .mp4 in the filename but wrapped as .tmp;
+        // the actual container format is determined by AVAssetWriter's fileType
+        // parameter, not the extension. We rename to .mp4 after finishWriting.
         let tempDir = FileManager.default.temporaryDirectory
-        let tempURL = tempDir.appendingPathComponent("himi_recording_\(Int(Date().timeIntervalSince1970)).mp4")
+        let df = DateFormatter()
+        df.dateFormat = "yyyyMMdd_HHmmss"
+        let stamp = df.string(from: Date())
+        let tempURL = tempDir.appendingPathComponent("HimiRecorder_\(stamp).tmp")
         self.tempVideoURL = tempURL
         
         // Use estimated Retina dimensions for the video writer
@@ -252,13 +272,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         selectionController?.dismissOverlay()
         selectionController = nil
         
+        removeEscMonitor()
+        
         guard let writer = videoWriter, let _ = tempVideoURL else { return }
         
         writer.finishWriting { [weak self] result in
             DispatchQueue.main.async {
                 switch result {
-                case .success(let url):
-                    self?.showPreview(url: url)
+                case .success(let tmpURL):
+                    // Rename .tmp → .mp4 now that writing is complete
+                    let mp4URL = tmpURL.deletingPathExtension().appendingPathExtension("mp4")
+                    try? FileManager.default.moveItem(at: tmpURL, to: mp4URL)
+                    self?.tempVideoURL = mp4URL
+                    self?.showPreview(url: mp4URL)
                 case .failure(let error):
                     print("[AppDelegate] Failed to finish writing: \(error)")
                     let alert = NSAlert()
@@ -300,10 +326,45 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     // MARK: - Helpers
     
-    private func cancelSelection() {
-        selectionController = nil
+    /// Cancel the entire recording flow from any stage (selection, countdown, or recording).
+    /// Triggered by pressing ESC at any point after startSelectionFlow().
+    func cancelRecording() {
+        // Stop capture if running
+        captureEngine?.stopCapture()
+        captureEngine = nil
+        
+        // Stop recording timer
+        recordingTimer?.invalidate()
+        recordingTimer = nil
+        recordingSeconds = 0
+        
+        // Discard any partially-written video
+        if let writer = videoWriter {
+            writer.finishWriting { [weak self] _ in
+                self?.cleanupTempFile()
+            }
+            videoWriter = nil
+        }
+        
+        // Close all UI
+        countdownWindow?.orderOut(nil)
+        countdownWindow = nil
         controlBarWindow?.orderOut(nil)
         controlBarWindow = nil
+        recordingBorderWindow?.orderOut(nil)
+        recordingBorderWindow = nil
+        selectionController?.dismissOverlay()
+        selectionController = nil
+        
+        // Remove ESC monitor
+        removeEscMonitor()
+    }
+    
+    private func removeEscMonitor() {
+        if let monitor = escMonitor {
+            NSEvent.removeMonitor(monitor)
+            escMonitor = nil
+        }
     }
     
     private func cleanupTempFile() {

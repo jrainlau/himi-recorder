@@ -4,13 +4,24 @@
 
 <h1 align="center">Himi Recorder</h1>
 
-<p align="center">一个 macOS 原生的区域录屏工具。常驻菜单栏，框选任意屏幕区域，录制为 MP4 视频。</p>
+<p align="center">一款具有隐身能力的 macOS 录屏工具 —— 绕过系统录屏检测机制，让被录制的应用无法感知正在被录屏。常驻菜单栏，框选任意区域，录制为 MP4。</p>
+
+## 演示
+
+<video src="imgs/Jietu20260417-104515-HD.mp4" controls width="100%"></video>
 
 ## 核心原理
 
 ### 为什么不用系统录屏 API？
 
 macOS 传统的录屏方案（如 `AVCaptureScreenInput`）会触发系统级的录屏指示器，让被录制的应用能够检测到正在被录屏。Himi Recorder 使用 **ScreenCaptureKit** 的 `SCStream` API，以排除自身窗口的方式进行屏幕捕获，录制内容不包含应用自身的 UI 元素（控制条、边框等）。
+
+### 反检测机制
+
+常见的录屏检测手段是扫描所有进程的文件描述符（`proc_pidfdinfo`），检查是否有进程正在写入 `.mp4`/`.mov` 等视频文件。Himi Recorder 通过以下策略规避：
+
+- **伪装文件扩展名**: 录制过程中使用 `.tmp` 后缀写入临时文件，`AVAssetWriter` 的容器格式由 `fileType` 参数决定，不依赖文件扩展名
+- **延迟重命名**: 录制完成后（`finishWriting` 回调后）才将 `.tmp` 重命名为 `.mp4`，确保活跃写入期间不暴露视频文件特征
 
 ### 技术架构
 
@@ -52,6 +63,7 @@ macOS 传统的录屏方案（如 `AVCaptureScreenInput`）会触发系统级的
   - 「导出」按钮：选择路径保存 MP4 到本地
   - 「✓」按钮：复制到系统剪贴板，可直接粘贴到微信等 IM 发送
 - **快捷键支持**: 可自定义开始/结束录制的全局快捷键
+- **ESC 一键取消**: 在框选、倒计时或录制过程中，随时按 ESC 取消整个录制流程
 - **帧率可选**: 24 / 30 / 60 fps，默认 60fps
 
 ## 系统要求
@@ -84,10 +96,10 @@ open HimiRecorder.app
 
 1. 点击菜单栏图标 → 「开始录制」
 2. 在任意屏幕上**框选**需要录制的区域（可拖拽手柄调整）
-3. 点击控制条上的**「开始录制」**按钮
+3. 点击控制条上的**「开始录制」**按钮（按 **ESC** 可随时取消）
 4. 等待 **3 秒倒计时**
 5. 录制进行中，控制条显示时长
-6. 点击**「结束录制」**
+6. 点击**「结束录制」**（或按 **ESC** 取消并丢弃录制）
 7. 在预览窗口中：
    - 调整播放速度
    - 拖拽裁剪条截取片段
@@ -137,8 +149,26 @@ himi-recorder/
 │   ├── CGImagePixelBufferTests.swift
 │   ├── E2ERecordingFlowTests.swift
 │   └── Mocks/
+├── DetectorTestApp/              # 录屏检测测试工具 (详见 DetectorTestApp/README.md)
 └── HimiRecorder.app/             # 构建产物
 ```
+
+## Recording Detector — 隐身效果测试工具
+
+项目附带一个独立的测试 APP [Recording Detector](DetectorTestApp/README.md)，用于验证 Himi Recorder 的隐身能力。它通过 `proc_pidfdinfo` 扫描所有进程的文件描述符，检测是否有进程正在写入视频文件（`.mp4`/`.mov` 等），能够检测到 QQ、OBS 等常见录屏软件。
+
+Himi Recorder 的规避策略：录制期间使用 `.tmp` 后缀写入临时文件，录制完成后才重命名为 `.mp4`，因此在录制过程中不会被视频文件写入检测捕获。
+
+<p align="center">
+  <img src="imgs/QQ20260417-104040.png" width="360" alt="未检测到录屏" />
+  <img src="imgs/QQ20260417-104135.png" width="360" alt="检测到 QQ 录屏" />
+</p>
+
+```bash
+cd DetectorTestApp && ./build.sh && open DetectorTestApp.app
+```
+
+> 详细说明见 [DetectorTestApp/README.md](DetectorTestApp/README.md)
 
 ## 开发
 

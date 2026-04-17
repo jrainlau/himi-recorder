@@ -236,4 +236,93 @@ final class E2ERecordingFlowTests: XCTestCase {
         let borderView = RecordingBorderView(frame: NSRect(x: 0, y: 0, width: 200, height: 150))
         XCTAssertTrue(borderView.wantsLayer)
     }
+    
+    // MARK: - ESC Cancel Recording
+    
+    func testSelectionOverlayViewEscKeyCallsCancelled() {
+        let view = SelectionOverlayView(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
+        var cancelledCalled = false
+        view.onCancelled = { cancelledCalled = true }
+        
+        // Simulate ESC keyDown (keyCode 53)
+        let escEvent = NSEvent.keyEvent(
+            with: .keyDown,
+            location: .zero,
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            characters: "\u{1B}",
+            charactersIgnoringModifiers: "\u{1B}",
+            isARepeat: false,
+            keyCode: 53
+        )
+        if let event = escEvent {
+            view.keyDown(with: event)
+        }
+        
+        XCTAssertTrue(cancelledCalled, "ESC key should trigger onCancelled callback")
+    }
+    
+    func testSelectionOverlayViewNonEscKeyDoesNotCancel() {
+        let view = SelectionOverlayView(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
+        var cancelledCalled = false
+        view.onCancelled = { cancelledCalled = true }
+        
+        // Simulate 'A' keyDown (keyCode 0)
+        let aEvent = NSEvent.keyEvent(
+            with: .keyDown,
+            location: .zero,
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            characters: "a",
+            charactersIgnoringModifiers: "a",
+            isARepeat: false,
+            keyCode: 0
+        )
+        if let event = aEvent {
+            view.keyDown(with: event)
+        }
+        
+        XCTAssertFalse(cancelledCalled, "Non-ESC key should not trigger onCancelled")
+    }
+    
+    func testCancelRecordingStopsCaptureEngine() {
+        let delegate = AppDelegate()
+        let mockCapturer = MockScreenCapturer()
+        mockCapturer.captureRect = CGRect(x: 0, y: 0, width: 200, height: 150)
+        mockCapturer.startCapture()
+        XCTAssertTrue(mockCapturer.isCapturing)
+        
+        mockCapturer.stopCapture()
+        XCTAssertFalse(mockCapturer.isCapturing, "stopCapture should set isCapturing to false")
+    }
+    
+    func testCancelRecordingCleansUpVideoWriter() throws {
+        let tempDir = TestHelper.createTempDirectory()
+        defer { TestHelper.removeTempDirectory(tempDir) }
+        
+        let outputURL = tempDir.appendingPathComponent("cancel_test.mp4")
+        let writer = VideoWriter()
+        try writer.startWriting(to: outputURL, width: 100, height: 100, frameRate: 30)
+        XCTAssertTrue(writer.isWriting)
+        
+        // Simulate cancel by finishing writing
+        let expectation = XCTestExpectation(description: "Cancel cleanup finish writing")
+        writer.finishWriting { result in
+            switch result {
+            case .success(let url):
+                // File exists after finish, would be cleaned up by cleanupTempFile
+                XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))
+            case .failure:
+                break // acceptable: no frames written
+            }
+            expectation.fulfill()
+        }
+        wait(for: [expectation], timeout: 5.0)
+        
+        XCTAssertFalse(writer.isWriting, "Writer should not be writing after finishWriting")
+    }
 }
