@@ -207,3 +207,13 @@ MIT License
 使用者应自行确保其使用行为合法合规，并对使用本软件产生的一切后果承担全部法律责任。本项目作者不对任何因使用或滥用本软件而导致的直接或间接损失、法律纠纷承担任何责任。
 
 **下载、安装或使用本软件即表示您已阅读并同意上述声明。**
+
+## Star History
+
+<a href="https://www.star-history.com/?repos=jrainlau%2Fhimi-recorder&type=date&logscale=&legend=bottom-right">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=jrainlau/himi-recorder&type=date&theme=dark&logscale&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=jrainlau/himi-recorder&type=date&logscale&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=jrainlau/himi-recorder&type=date&logscale&legend=top-left" />
+ </picture>
+</a>
